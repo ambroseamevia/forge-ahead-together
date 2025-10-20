@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const benefits = [
   "Upload CV in any format",
@@ -40,13 +41,17 @@ export const CTA = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="heroPrimary" size="lg" className="group">
-                Start Free Trial
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button variant="outline" size="lg">
-                Schedule Demo
-              </Button>
+              <Link to="/auth">
+                <Button variant="heroPrimary" size="lg" className="group">
+                  Start Free Trial
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Link to="/auth">
+                <Button variant="outline" size="lg">
+                  Schedule Demo
+                </Button>
+              </Link>
             </div>
 
             <p className="text-center text-sm text-muted-foreground mt-6">

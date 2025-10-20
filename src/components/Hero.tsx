@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
+import { Link } from "react-router-dom";
 
 export const Hero = () => {
   return (
@@ -36,13 +37,17 @@ export const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button variant="hero" size="lg" className="group">
-              Get Started
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button variant="outline" size="lg">
-              Learn More
-            </Button>
+            <Link to="/auth">
+              <Button variant="hero" size="lg" className="group">
+                Get Started
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <a href="#features">
+              <Button variant="outline" size="lg">
+                Learn More
+              </Button>
+            </a>
           </div>
 
           {/* Stats */}

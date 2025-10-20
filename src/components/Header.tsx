@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { BrainCircuit } from "lucide-react";
 
 export const Header = () => {
@@ -26,12 +27,16 @@ export const Header = () => {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              Sign In
-            </Button>
-            <Button size="sm">
-              Get Started
-            </Button>
+            <Link to="/auth">
+              <Button variant="ghost" size="sm">
+                Sign In
+              </Button>
+            </Link>
+            <Link to="/auth">
+              <Button size="sm">
+                Get Started
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
