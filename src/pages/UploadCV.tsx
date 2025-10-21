@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Upload, ArrowLeft, FileText, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function UploadCV() {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [parseResults, setParseResults] = useState<any>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -20,20 +22,12 @@ export default function UploadCV() {
       const maxSize = 10 * 1024 * 1024; // 10MB
 
       if (!validTypes.includes(selectedFile.type)) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid file type',
-          description: 'Please upload a PDF, DOCX, or TXT file',
-        });
+        toast.error('Invalid file type. Please upload a PDF, DOCX, or TXT file');
         return;
       }
 
       if (selectedFile.size > maxSize) {
-        toast({
-          variant: 'destructive',
-          title: 'File too large',
-          description: 'Please upload a file smaller than 10MB',
-        });
+        toast.error('File too large. Please upload a file smaller than 10MB');
         return;
       }
 
@@ -45,6 +39,7 @@ export default function UploadCV() {
     if (!file || !user) return;
 
     setIsUploading(true);
+    setParseResults(null);
 
     try {
       // Upload to storage
@@ -57,33 +52,47 @@ export default function UploadCV() {
 
       if (uploadError) throw uploadError;
 
-      // TODO: Call parse-cv edge function
-      // For now, just save the CV record
-      const { error: dbError } = await supabase
+      const { data: cvData, error: dbError } = await supabase
         .from('cvs')
         .insert({
           user_id: user.id,
           file_name: file.name,
           file_path: fileName,
           file_type: file.type,
-        });
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
-      toast({
-        title: 'CV uploaded successfully!',
-        description: 'We are parsing your CV. This may take a moment.',
+      toast.success('CV uploaded successfully! Parsing with AI...');
+      setIsUploading(false);
+      setIsParsing(true);
+
+      // Call parse-cv edge function
+      const { data: parseData, error: parseError } = await supabase.functions.invoke('parse-cv', {
+        body: { cv_id: cvData.id, user_id: user.id },
       });
 
+      if (parseError) {
+        toast.error(`Parsing failed: ${parseError.message}`);
+        setIsParsing(false);
+        return;
+      }
+
+      if (parseData?.success) {
+        setParseResults(parseData.data);
+        toast.success('CV parsed successfully!');
+      } else {
+        toast.error('Parsing completed with errors');
+      }
+      
+      setIsParsing(false);
       setFile(null);
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Upload failed',
-        description: error.message,
-      });
-    } finally {
+      toast.error(`Upload failed: ${error.message}`);
       setIsUploading(false);
+      setIsParsing(false);
     }
   };
 
@@ -151,11 +160,16 @@ export default function UploadCV() {
                     </p>
                   </div>
                 </div>
-                <Button onClick={handleUpload} disabled={isUploading}>
+                <Button onClick={handleUpload} disabled={isUploading || isParsing}>
                   {isUploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Uploading...
+                    </>
+                  ) : isParsing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Parsing...
                     </>
                   ) : (
                     <>
@@ -165,6 +179,41 @@ export default function UploadCV() {
                   )}
                 </Button>
               </div>
+            )}
+
+            {parseResults && (
+              <Card className="bg-primary/5">
+                <CardHeader>
+                  <CardTitle>Parsing Results</CardTitle>
+                  <CardDescription>Your CV has been successfully analyzed</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Skills Extracted</p>
+                      <p className="text-2xl font-bold">{parseResults.skills_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Work Experience</p>
+                      <p className="text-2xl font-bold">{parseResults.work_experience_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Education</p>
+                      <p className="text-2xl font-bold">{parseResults.education_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Career Level</p>
+                      <p className="text-2xl font-bold capitalize">{parseResults.career_level}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => navigate('/profile')} 
+                    className="w-full"
+                  >
+                    View Profile
+                  </Button>
+                </CardContent>
+              </Card>
             )}
 
             <div className="space-y-2 text-sm text-muted-foreground">
