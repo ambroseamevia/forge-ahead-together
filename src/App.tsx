@@ -11,7 +11,9 @@ import Dashboard from "./pages/Dashboard";
 import UploadCV from "./pages/UploadCV";
 import Profile from "./pages/Profile";
 import Jobs from "./pages/Jobs";
+import JobDetails from "./pages/JobDetails";
 import Applications from "./pages/Applications";
+import ApplicationDetails from "./pages/ApplicationDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,7 +32,9 @@ const App = () => (
             <Route path="/upload-cv" element={<ProtectedRoute><UploadCV /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+            <Route path="/jobs/:id" element={<ProtectedRoute><JobDetails /></ProtectedRoute>} />
             <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
+            <Route path="/applications/:id" element={<ProtectedRoute><ApplicationDetails /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

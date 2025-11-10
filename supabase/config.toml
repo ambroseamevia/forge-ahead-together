@@ -1,1 +1,13 @@
 project_id = "wchczrqifuabragxsufh"
+
+[functions.parse-cv]
+verify_jwt = true
+
+[functions.scrape-jobs]
+verify_jwt = false
+
+[functions.match-jobs]
+verify_jwt = true
+
+[functions.generate-application]
+verify_jwt = true
