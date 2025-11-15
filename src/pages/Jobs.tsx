@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,13 +6,19 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, MapPin, DollarSign, Briefcase, RefreshCw, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, MapPin, DollarSign, Briefcase, RefreshCw, Loader2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Jobs() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
 
   // Fetch job matches with job details
   const { data: matches, isLoading } = useQuery({
@@ -86,6 +92,124 @@ export default function Jobs() {
     return 'Fair';
   };
 
+  // Generate autocomplete suggestions
+  const suggestions = useMemo(() => {
+    if (!matches || searchQuery.length < 2) return [];
+
+    const query = searchQuery.toLowerCase();
+    const uniqueSuggestions = new Set<string>();
+
+    matches.forEach((match: any) => {
+      const job = match.jobs;
+      if (!job) return;
+
+      // Add job titles
+      if (job.title.toLowerCase().includes(query)) {
+        uniqueSuggestions.add(job.title);
+      }
+
+      // Add companies
+      if (job.company.toLowerCase().includes(query)) {
+        uniqueSuggestions.add(job.company);
+      }
+
+      // Add keywords from description and requirements
+      const keywords = [
+        ...job.description?.toLowerCase().split(/\W+/) || [],
+        ...job.requirements?.toLowerCase().split(/\W+/) || []
+      ];
+      
+      keywords.forEach(keyword => {
+        if (keyword.length > 3 && keyword.includes(query)) {
+          uniqueSuggestions.add(keyword);
+        }
+      });
+    });
+
+    return Array.from(uniqueSuggestions).slice(0, 8);
+  }, [matches, searchQuery]);
+
+  // Filter matches based on search query
+  const filteredMatches = useMemo(() => {
+    if (!matches || !searchQuery) return matches;
+
+    const query = searchQuery.toLowerCase();
+    return matches.filter((match: any) => {
+      const job = match.jobs;
+      if (!job) return false;
+
+      return (
+        job.title.toLowerCase().includes(query) ||
+        job.company.toLowerCase().includes(query) ||
+        job.location?.toLowerCase().includes(query) ||
+        job.description?.toLowerCase().includes(query) ||
+        job.requirements?.toLowerCase().includes(query) ||
+        job.job_type?.toLowerCase().includes(query)
+      );
+    });
+  }, [matches, searchQuery]);
+
+  // Handle click outside autocomplete
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowAutocomplete(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showAutocomplete || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          setSearchQuery(suggestions[selectedSuggestionIndex]);
+          setShowAutocomplete(false);
+          setSelectedSuggestionIndex(-1);
+        }
+        break;
+      case 'Escape':
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
+        break;
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    setShowAutocomplete(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.focus();
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowAutocomplete(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.focus();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -116,26 +240,83 @@ export default function Jobs() {
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">Job Matches</h2>
           <p className="text-muted-foreground">
-            AI-powered job recommendations tailored to your profile
+            Jobs that match your profile and preferences
           </p>
         </div>
+
+        {/* Search Bar with Autocomplete */}
+        <div className="mb-6 relative">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search by job title, company, or keywords..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowAutocomplete(true);
+                setSelectedSuggestionIndex(-1);
+              }}
+              onFocus={() => setShowAutocomplete(true)}
+              onKeyDown={handleKeyDown}
+              className="pl-10 pr-10 h-12 text-base"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Autocomplete Dropdown */}
+          {showAutocomplete && suggestions.length > 0 && (
+            <div
+              ref={autocompleteRef}
+              className="absolute z-50 w-full mt-2 bg-background border border-border rounded-lg shadow-lg overflow-hidden"
+            >
+              <div className="py-2">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className={`w-full text-left px-4 py-2 hover:bg-accent transition-colors ${
+                      index === selectedSuggestionIndex ? 'bg-accent' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Search className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-sm">{suggestion}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Search Results Info */}
+        {searchQuery && (
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Found {filteredMatches?.length || 0} {filteredMatches?.length === 1 ? 'job' : 'jobs'} matching "{searchQuery}"
+            </p>
+            <Button variant="ghost" size="sm" onClick={clearSearch}>
+              Clear search
+            </Button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : !matches || matches.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Job Matches Yet</CardTitle>
-              <CardDescription>
-                Click "Refresh Matches" to find jobs that match your profile
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        ) : (
+        ) : filteredMatches && filteredMatches.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {matches.map((match: any) => (
+            {filteredMatches.map((match: any) => (
               <Card key={match.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
@@ -189,6 +370,28 @@ export default function Jobs() {
               </Card>
             ))}
           </div>
+        ) : searchQuery ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>No jobs found</CardTitle>
+              <CardDescription>
+                No jobs match your search "{searchQuery}". Try different keywords or{' '}
+                <button onClick={clearSearch} className="text-primary hover:underline">
+                  clear your search
+                </button>
+                .
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>No job matches yet</CardTitle>
+              <CardDescription>
+                Click "Refresh Matches" to find jobs that match your profile
+              </CardDescription>
+            </CardHeader>
+          </Card>
         )}
       </main>
     </div>
