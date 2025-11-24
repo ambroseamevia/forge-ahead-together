@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const jobSchema = z.object({
@@ -44,6 +44,8 @@ const AddJob = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseUrl, setParseUrl] = useState('');
 
   const {
     register,
@@ -60,6 +62,61 @@ const AddJob = () => {
   });
 
   const remoteOption = watch('remote_option');
+
+  const handleParseUrl = async () => {
+    if (!parseUrl) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a job URL to parse',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsParsing(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('parse-job-url', {
+        body: { url: parseUrl },
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.data) {
+        const jobData = data.data;
+
+        // Auto-fill form fields
+        if (jobData.title) setValue('title', jobData.title);
+        if (jobData.company) setValue('company', jobData.company);
+        if (jobData.location) setValue('location', jobData.location);
+        if (jobData.description) setValue('description', jobData.description);
+        if (jobData.requirements) setValue('requirements', jobData.requirements);
+        if (jobData.salary) setValue('salary_range', jobData.salary);
+        if (jobData.jobType) setValue('job_type', jobData.jobType);
+        if (jobData.platform) setValue('source_platform', jobData.platform);
+        setValue('source_url', parseUrl);
+
+        toast({
+          title: 'Success!',
+          description: 'Job details extracted and form pre-filled',
+        });
+      } else {
+        toast({
+          title: 'Partial Success',
+          description: 'Could not extract all details. Please fill in missing fields.',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error parsing URL:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to parse job URL. Please fill the form manually.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsParsing(false);
+    }
+  };
 
   const onSubmit = async (data: JobFormData) => {
     if (!user) {
@@ -146,6 +203,41 @@ const AddJob = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* URL Parser Section */}
+            <Card className="mb-6 border-2 border-primary/20 bg-primary/5">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Auto-Fill from URL</CardTitle>
+                </div>
+                <CardDescription>
+                  Paste a LinkedIn, Indeed, or other job board URL to automatically extract job details
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    placeholder="https://www.linkedin.com/jobs/view/..."
+                    value={parseUrl}
+                    onChange={(e) => setParseUrl(e.target.value)}
+                    disabled={isParsing}
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleParseUrl}
+                    disabled={isParsing || !parseUrl}
+                    className="whitespace-nowrap"
+                  >
+                    {isParsing ? 'Parsing...' : 'Parse URL'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Note: Some sites may block automated parsing. If it doesn't work, fill the form manually.
+                </p>
+              </CardContent>
+            </Card>
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Basic Information */}
               <div className="space-y-4">
