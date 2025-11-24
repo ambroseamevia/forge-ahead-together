@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { Upload, User, Briefcase, FileText, LogOut, PlusCircle } from 'lucide-react';
+import { Upload, User, Briefcase, FileText, LogOut, Bookmark } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -84,10 +84,10 @@ export default function Dashboard() {
           <Link to="/add-job">
             <Card className="cursor-pointer hover:border-primary transition-colors">
               <CardHeader>
-                <PlusCircle className="h-8 w-8 mb-2 text-primary" />
-                <CardTitle>Post a Job</CardTitle>
+                <Bookmark className="h-8 w-8 mb-2 text-primary" />
+                <CardTitle>Save a Job</CardTitle>
                 <CardDescription>
-                  Create a new job posting manually
+                  Import jobs you find online to apply with AI assistance
                 </CardDescription>
               </CardHeader>
             </Card>
