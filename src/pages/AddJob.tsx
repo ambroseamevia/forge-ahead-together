@@ -13,16 +13,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const jobSchema = z.object({
   title: z.string().min(3, 'Job title must be at least 3 characters').max(200),
   company: z.string().min(2, 'Company name must be at least 2 characters').max(200),
+  source_url: z.string().url('Must be a valid URL').min(1, 'Job URL is required'),
   location: z.string().optional(),
   job_type: z.string().optional(),
   salary_range: z.string().optional(),
   remote_option: z.boolean().default(false),
   source_platform: z.string().optional(),
-  source_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   posted_date: z.string().optional(),
   description: z.string().optional(),
   requirements: z.string().optional(),
@@ -41,6 +42,7 @@ const sourcePlatforms = [
 
 const AddJob = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -60,36 +62,63 @@ const AddJob = () => {
   const remoteOption = watch('remote_option');
 
   const onSubmit = async (data: JobFormData) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to save jobs',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.from('jobs').insert({
-        title: data.title,
-        company: data.company,
-        location: data.location || null,
-        job_type: data.job_type || null,
-        salary_range: data.salary_range || null,
-        remote_option: data.remote_option,
-        source_platform: data.source_platform || null,
-        source_url: data.source_url || null,
-        posted_date: data.posted_date || null,
-        description: data.description || null,
-        requirements: data.requirements || null,
-        is_active: true,
+      const { data: jobData, error: insertError } = await supabase
+        .from('jobs')
+        .insert({
+          title: data.title,
+          company: data.company,
+          location: data.location || null,
+          job_type: data.job_type || null,
+          salary_range: data.salary_range || null,
+          remote_option: data.remote_option,
+          source_platform: data.source_platform || null,
+          source_url: data.source_url,
+          posted_date: data.posted_date || null,
+          description: data.description || null,
+          requirements: data.requirements || null,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Call match-jobs function to calculate match scores
+      const { data: matchData, error: matchError } = await supabase.functions.invoke('match-jobs', {
+        body: { userId: user.id },
       });
 
-      if (error) throw error;
+      if (matchError) {
+        console.error('Error matching job:', matchError);
+        toast({
+          title: 'Job Saved!',
+          description: 'Job saved successfully. Match calculation pending.',
+        });
+      } else {
+        toast({
+          title: 'Job Saved & Matched!',
+          description: `Job saved successfully! Check your match score.`,
+        });
+      }
 
-      toast({
-        title: 'Success!',
-        description: 'Job posting has been created successfully.',
-      });
-
+      // Navigate to the Jobs page to see the new match
       navigate('/jobs');
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create job posting',
+        description: error.message || 'Failed to save job',
         variant: 'destructive',
       });
     } finally {
@@ -111,9 +140,9 @@ const AddJob = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl">Post a Job</CardTitle>
+            <CardTitle className="text-3xl">Save Job to Apply</CardTitle>
             <CardDescription>
-              Fill out the form below to create a new job posting
+              Save this job posting so our AI can help you apply and track your application
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -226,16 +255,19 @@ const AddJob = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="source_url">Source URL</Label>
+                  <Label htmlFor="source_url">Job URL *</Label>
                   <Input
                     id="source_url"
                     type="url"
-                    placeholder="https://example.com/job-posting"
+                    placeholder="https://linkedin.com/jobs/... or https://indeed.com/..."
                     {...register('source_url')}
                   />
                   {errors.source_url && (
                     <p className="text-sm text-destructive">{errors.source_url.message}</p>
                   )}
+                  <p className="text-sm text-muted-foreground">
+                    Paste the link to the job posting on LinkedIn, Indeed, or any job board
+                  </p>
                 </div>
               </div>
 
@@ -266,7 +298,7 @@ const AddJob = () => {
 
               <div className="flex gap-4">
                 <Button type="submit" disabled={isSubmitting} className="flex-1">
-                  {isSubmitting ? 'Creating...' : 'Create Job Posting'}
+                  {isSubmitting ? 'Saving & Matching...' : 'Save Job & Match'}
                 </Button>
                 <Button
                   type="button"
