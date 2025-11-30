@@ -85,14 +85,35 @@ export const useEducation = () => {
     },
   });
 
+  const deleteAllEducation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user');
+
+      const { error } = await supabase
+        .from('education')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['education', user?.id] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete education: ${error.message}`);
+    },
+  });
+
   return {
     education,
     isLoading,
     addEducation: addEducation.mutate,
     updateEducation: updateEducation.mutate,
     deleteEducation: deleteEducation.mutate,
+    deleteAllEducation: deleteAllEducation.mutateAsync,
     isAdding: addEducation.isPending,
     isUpdating: updateEducation.isPending,
     isDeleting: deleteEducation.isPending,
+    isDeletingAll: deleteAllEducation.isPending,
   };
 };

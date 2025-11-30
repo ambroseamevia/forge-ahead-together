@@ -85,14 +85,35 @@ export const useWorkExperience = () => {
     },
   });
 
+  const deleteAllExperiences = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user');
+
+      const { error } = await supabase
+        .from('work_experience')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work_experience', user?.id] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete experiences: ${error.message}`);
+    },
+  });
+
   return {
     experiences,
     isLoading,
     addExperience: addExperience.mutate,
     updateExperience: updateExperience.mutate,
     deleteExperience: deleteExperience.mutate,
+    deleteAllExperiences: deleteAllExperiences.mutateAsync,
     isAdding: addExperience.isPending,
     isUpdating: updateExperience.isPending,
     isDeleting: deleteExperience.isPending,
+    isDeletingAll: deleteAllExperiences.isPending,
   };
 };
