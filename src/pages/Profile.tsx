@@ -24,11 +24,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useProfile } from '@/hooks/useProfile';
 import { useSkills } from '@/hooks/useSkills';
 import { useWorkExperience } from '@/hooks/useWorkExperience';
 import { useEducation } from '@/hooks/useEducation';
+import { useCVs } from '@/hooks/useCVs';
 import { 
   ArrowLeft, 
   Plus, 
@@ -37,15 +49,19 @@ import {
   Briefcase, 
   GraduationCap,
   CheckCircle2,
-  Circle
+  Circle,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Profile() {
   const { profile, isLoading: profileLoading, updateProfile, isUpdating } = useProfile();
-  const { skills, groupedSkills, isLoading: skillsLoading, addSkill, deleteSkill, isAdding } = useSkills();
-  const { experiences, isLoading: expLoading, addExperience, updateExperience, deleteExperience } = useWorkExperience();
-  const { education, isLoading: eduLoading, addEducation, updateEducation, deleteEducation } = useEducation();
+  const { skills, groupedSkills, isLoading: skillsLoading, addSkill, deleteSkill, isAdding, deleteAllSkills } = useSkills();
+  const { experiences, isLoading: expLoading, addExperience, updateExperience, deleteExperience, deleteAllExperiences } = useWorkExperience();
+  const { education, isLoading: eduLoading, addEducation, updateEducation, deleteEducation, deleteAllEducation } = useEducation();
+  const { cvs, deleteAllCVs } = useCVs();
+  const [isResetting, setIsResetting] = useState(false);
 
   // Personal Info State
   const [personalInfo, setPersonalInfo] = useState({
@@ -959,6 +975,77 @@ export default function Profile() {
               <Button onClick={handleUpdateJobPrefs} disabled={isUpdating}>
                 {isUpdating ? 'Saving...' : 'Save Preferences'}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Reset Profile Data */}
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reset Profile Data
+            </CardTitle>
+            <CardDescription>
+              Clear all your profile data to start fresh. This action cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg text-sm space-y-2">
+                <p className="font-medium">This will permanently delete:</p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>{skills.length} skills</li>
+                  <li>{experiences.length} work experiences</li>
+                  <li>{education.length} education entries</li>
+                  <li>{cvs.length} uploaded CVs</li>
+                </ul>
+              </div>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isResetting}>
+                    {isResetting ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resetting...</>
+                    ) : (
+                      <><Trash2 className="h-4 w-4 mr-2" />Reset All Profile Data</>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all your skills, work experience, education, and CV uploads. 
+                      This action cannot be undone. You will need to re-upload your CV to rebuild your profile.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={async () => {
+                        setIsResetting(true);
+                        try {
+                          await Promise.all([
+                            deleteAllSkills(),
+                            deleteAllExperiences(),
+                            deleteAllEducation(),
+                            deleteAllCVs(),
+                          ]);
+                          toast.success('Profile data cleared successfully. You can now re-upload your CV.');
+                        } catch (error: any) {
+                          toast.error(`Failed to reset: ${error.message}`);
+                        } finally {
+                          setIsResetting(false);
+                        }
+                      }}
+                    >
+                      Yes, delete everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>

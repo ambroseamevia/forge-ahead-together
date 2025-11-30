@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSkills } from '@/hooks/useSkills';
+import { useWorkExperience } from '@/hooks/useWorkExperience';
+import { useEducation } from '@/hooks/useEducation';
+import { useCVs } from '@/hooks/useCVs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, ArrowLeft, FileText, Loader2, Check, X, AlertTriangle, Edit2 } from 'lucide-react';
+import { Upload, ArrowLeft, FileText, Loader2, Check, X, AlertTriangle, Edit2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -51,6 +57,11 @@ interface ParsedData {
 export default function UploadCV() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { skills, deleteAllSkills } = useSkills();
+  const { experiences, deleteAllExperiences } = useWorkExperience();
+  const { education, deleteAllEducation } = useEducation();
+  const { cvs, deleteAllCVs } = useCVs();
+  
   const [isUploading, setIsUploading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +69,9 @@ export default function UploadCV() {
   const [cvId, setCvId] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(true);
+  
+  const hasExistingData = skills.length > 0 || experiences.length > 0 || education.length > 0 || cvs.length > 0;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -176,6 +190,16 @@ export default function UploadCV() {
     setIsSaving(true);
 
     try {
+      // If replace mode is enabled, clear existing data first
+      if (replaceMode && hasExistingData) {
+        toast.info('Clearing existing profile data...');
+        await Promise.all([
+          deleteAllSkills(),
+          deleteAllExperiences(),
+          deleteAllEducation(),
+        ]);
+      }
+
       // Filter only selected items
       const dataToSave = {
         personal_info: parsedData.personal_info,
@@ -293,6 +317,38 @@ export default function UploadCV() {
                       <><Upload className="h-4 w-4 mr-2" />Upload & Analyze</>
                     )}
                   </Button>
+                </div>
+              )}
+
+              {hasExistingData && (
+                <div className="flex items-center justify-between p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <RefreshCw className="h-5 w-5 text-amber-600" />
+                    <div>
+                      <p className="font-medium text-sm">Replace existing data</p>
+                      <p className="text-xs text-muted-foreground">
+                        {replaceMode 
+                          ? 'Existing skills, experience, and education will be cleared before adding new data'
+                          : 'New data will be added to your existing profile'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={replaceMode}
+                    onCheckedChange={setReplaceMode}
+                  />
+                </div>
+              )}
+
+              {hasExistingData && (
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                  <p className="font-medium mb-1">Current profile data:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li>{skills.length} skills</li>
+                    <li>{experiences.length} work experiences</li>
+                    <li>{education.length} education entries</li>
+                    <li>{cvs.length} uploaded CVs</li>
+                  </ul>
                 </div>
               )}
 

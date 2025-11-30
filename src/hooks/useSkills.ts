@@ -90,6 +90,25 @@ export const useSkills = () => {
     },
   });
 
+  const deleteAllSkills = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user');
+
+      const { error } = await supabase
+        .from('skills')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills', user?.id] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete skills: ${error.message}`);
+    },
+  });
+
   const groupedSkills = {
     technical: skills.filter((s) => s.skill_type === 'technical'),
     soft: skills.filter((s) => s.skill_type === 'soft'),
@@ -103,7 +122,9 @@ export const useSkills = () => {
     addSkill: addSkill.mutate,
     updateSkill: updateSkill.mutate,
     deleteSkill: deleteSkill.mutate,
+    deleteAllSkills: deleteAllSkills.mutateAsync,
     isAdding: addSkill.isPending,
+    isDeletingAll: deleteAllSkills.isPending,
     isUpdating: updateSkill.isPending,
     isDeleting: deleteSkill.isPending,
   };
