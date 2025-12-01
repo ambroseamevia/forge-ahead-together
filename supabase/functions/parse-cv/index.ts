@@ -67,62 +67,34 @@ function calculateCareerLevel(workExperience: ParsedCV['work_experience']): Care
   return 'entry';
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+// Convert ArrayBuffer to base64
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
+  return btoa(binary);
+}
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+// Get MIME type from file extension
+function getMimeType(fileName: string): string {
+  const ext = fileName.toLowerCase().split('.').pop();
+  switch (ext) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'doc':
+      return 'application/msword';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'txt':
+      return 'text/plain';
+    default:
+      return 'application/octet-stream';
+  }
+}
 
-    const { cv_id, user_id, save_data = false, parsed_data } = await req.json();
-
-    // If this is a save request with pre-reviewed data
-    if (save_data && parsed_data) {
-      console.log('Saving reviewed CV data for user:', user_id);
-      return await saveReviewedData(supabase, user_id, cv_id, parsed_data);
-    }
-
-    // Otherwise, parse the CV and return data for review
-    console.log('Parsing CV:', cv_id, 'for user:', user_id);
-
-    // Fetch CV from database
-    const { data: cvData, error: cvError } = await supabase
-      .from('cvs')
-      .select('*')
-      .eq('id', cv_id)
-      .single();
-
-    if (cvError) throw new Error(`CV not found: ${cvError.message}`);
-
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('cvs')
-      .download(cvData.file_path);
-
-    if (downloadError) throw new Error(`Failed to download CV: ${downloadError.message}`);
-
-    // Extract text from file
-    const fileBuffer = await fileData.arrayBuffer();
-    const fileText = new TextDecoder().decode(fileBuffer);
-
-    console.log('CV text length:', fileText.length);
-
-    // Call Lovable AI for parsing with STRICT instructions
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a precise CV data extractor. Your job is to extract ONLY information that is EXPLICITLY written in the CV.
+const systemPrompt = `You are a precise CV data extractor. Your job is to extract ONLY information that is EXPLICITLY written in the CV.
 
 CRITICAL RULES:
 1. Extract ONLY what is explicitly stated - DO NOT infer, assume, or fabricate any information
@@ -132,11 +104,9 @@ CRITICAL RULES:
 5. Do NOT add skills that might be "implied" by a job title
 6. Do NOT fabricate achievements - only include what is written
 7. If the CV is poorly formatted or unclear, extract less rather than guess more
-8. Return ONLY valid JSON, no markdown or explanation`,
-          },
-          {
-            role: 'user',
-            content: `Extract ONLY explicitly stated information from this CV. Return JSON in this exact format:
+8. Return ONLY valid JSON, no markdown or explanation`;
+
+const userPrompt = `Extract ONLY explicitly stated information from this CV document. Return JSON in this exact format:
 
 {
   "personal_info": {
@@ -175,37 +145,148 @@ CRITICAL RULES:
 
 IMPORTANT: If information is not clearly stated, omit it or use null. Do NOT guess or infer.
 
-CV Content:
-${fileText}
+Return ONLY the JSON.`;
 
-Return ONLY the JSON.`,
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { cv_id, user_id, save_data = false, parsed_data } = await req.json();
+
+    // If this is a save request with pre-reviewed data
+    if (save_data && parsed_data) {
+      console.log('Saving reviewed CV data for user:', user_id);
+      return await saveReviewedData(supabase, user_id, cv_id, parsed_data);
+    }
+
+    // Otherwise, parse the CV and return data for review
+    console.log('Parsing CV:', cv_id, 'for user:', user_id);
+
+    // Fetch CV from database
+    const { data: cvData, error: cvError } = await supabase
+      .from('cvs')
+      .select('*')
+      .eq('id', cv_id)
+      .single();
+
+    if (cvError) throw new Error(`CV not found: ${cvError.message}`);
+
+    console.log('CV file type:', cvData.file_type, 'File name:', cvData.file_name);
+
+    // Download file from storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('cvs')
+      .download(cvData.file_path);
+
+    if (downloadError) throw new Error(`Failed to download CV: ${downloadError.message}`);
+
+    // Get file buffer
+    const fileBuffer = await fileData.arrayBuffer();
+    console.log('File size:', fileBuffer.byteLength, 'bytes');
+
+    // Determine if this is a binary file (PDF, DOCX) or text file
+    const mimeType = getMimeType(cvData.file_name);
+    const isBinaryFile = mimeType === 'application/pdf' || 
+                          mimeType === 'application/msword' ||
+                          mimeType.includes('openxmlformats');
+
+    console.log('MIME type:', mimeType, 'Is binary:', isBinaryFile);
+
+    let aiRequestBody: any;
+
+    if (isBinaryFile) {
+      // For PDFs and binary docs: Use Gemini's vision capability with base64
+      const base64Content = arrayBufferToBase64(fileBuffer);
+      console.log('Base64 content length:', base64Content.length);
+
+      aiRequestBody = {
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: userPrompt,
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Content}`,
+                },
+              },
+            ],
           },
         ],
-      }),
+      };
+    } else {
+      // For text files: Use plain text
+      const fileText = new TextDecoder().decode(fileBuffer);
+      console.log('Text file length:', fileText.length);
+
+      aiRequestBody = {
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: `${userPrompt}\n\nCV Content:\n${fileText}`,
+          },
+        ],
+      };
+    }
+
+    // Call Lovable AI for parsing
+    console.log('Calling AI for parsing...');
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+      },
+      body: JSON.stringify(aiRequestBody),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('AI parsing failed:', errorText);
+      console.error('AI parsing failed:', aiResponse.status, errorText);
       throw new Error(`AI parsing failed: ${errorText}`);
     }
 
     const aiResult = await aiResponse.json();
+    console.log('AI response received');
+    
     let parsedData: ParsedCV;
     
     try {
       const content = aiResult.choices[0].message.content;
+      console.log('AI content preview:', content.substring(0, 200));
       const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsedData = JSON.parse(jsonStr);
     } catch (e: any) {
       console.error('Failed to parse AI response:', e);
+      console.error('Raw AI content:', aiResult.choices?.[0]?.message?.content);
       throw new Error(`Failed to parse AI response: ${e.message || String(e)}`);
     }
 
     // Calculate career level from actual work experience dates (not AI guess)
     const careerLevel = calculateCareerLevel(parsedData.work_experience);
     
-    console.log('Parsed data:', {
+    console.log('Parsed data summary:', {
+      personal_info: parsedData.personal_info,
       skills: parsedData.skills?.length || 0,
       experience: parsedData.work_experience?.length || 0,
       education: parsedData.education?.length || 0,
