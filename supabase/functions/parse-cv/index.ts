@@ -67,6 +67,24 @@ function calculateCareerLevel(workExperience: ParsedCV['work_experience']): Care
   return 'entry';
 }
 
+// Normalize date strings to YYYY-MM-DD format
+function normalizeDate(dateStr: string | null): string | null {
+  if (!dateStr || dateStr === 'Unknown' || dateStr === 'null') return null;
+  
+  // If just a year (e.g., "2023"), convert to "2023-01-01"
+  if (/^\d{4}$/.test(dateStr)) {
+    return `${dateStr}-01-01`;
+  }
+  
+  // If year-month (e.g., "2023-06"), convert to "2023-06-01"
+  if (/^\d{4}-\d{2}$/.test(dateStr)) {
+    return `${dateStr}-01`;
+  }
+  
+  // Otherwise return as-is (already full date)
+  return dateStr;
+}
+
 // Convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -361,8 +379,8 @@ async function saveReviewedData(supabase: any, userId: string, cvId: string, par
         user_id: userId,
         job_title: exp.job_title,
         company: exp.company,
-        start_date: exp.start_date,
-        end_date: exp.end_date,
+        start_date: normalizeDate(exp.start_date),
+        end_date: normalizeDate(exp.end_date),
         description: exp.description || '',
         achievements: exp.achievements || [],
       }));
@@ -386,7 +404,7 @@ async function saveReviewedData(supabase: any, userId: string, cvId: string, par
         degree: edu.degree,
         institution: edu.institution,
         field_of_study: edu.field_of_study || '',
-        graduation_date: edu.graduation_date,
+        graduation_date: normalizeDate(edu.graduation_date),
         certifications: edu.certifications || [],
       }));
 
