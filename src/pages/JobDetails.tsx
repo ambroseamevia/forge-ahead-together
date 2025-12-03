@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, MapPin, DollarSign, Briefcase, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, DollarSign, Briefcase, ExternalLink, Loader2, CheckCircle2, Plane, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function JobDetails() {
   const { id } = useParams();
@@ -121,12 +122,31 @@ export default function JobDetails() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Visa Sponsorship Alert */}
+              {job?.visa_sponsorship && (
+                <Alert className="bg-emerald-500/10 border-emerald-500/30">
+                  <Plane className="h-5 w-5 text-emerald-600" />
+                  <AlertTitle className="text-emerald-700 dark:text-emerald-400">Visa Sponsorship Available</AlertTitle>
+                  <AlertDescription className="text-emerald-600/80 dark:text-emerald-400/80">
+                    This employer sponsors work visas for qualified international candidates from Ghana and other countries.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center text-muted-foreground">
                   <MapPin className="h-5 w-5 mr-2" />
                   <div>
                     <div className="text-sm font-medium text-foreground">{job?.location}</div>
-                    {job?.remote_option && <Badge variant="outline" className="mt-1">Remote</Badge>}
+                    <div className="flex gap-1 mt-1">
+                      {job?.remote_option && <Badge variant="outline">Remote</Badge>}
+                      {job?.visa_sponsorship && (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                          <Globe className="h-3 w-3 mr-1" />
+                          International
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center text-muted-foreground">
