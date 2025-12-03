@@ -8,7 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, MapPin, DollarSign, Briefcase, RefreshCw, Loader2, Search, X, Filter } from 'lucide-react';
+import { ArrowLeft, MapPin, DollarSign, Briefcase, RefreshCw, Loader2, Search, X, Globe, Plane } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 type MatchFilter = 'all' | 'excellent' | 'good' | 'fair' | 'low';
@@ -19,6 +21,7 @@ export default function Jobs() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [matchFilter, setMatchFilter] = useState<MatchFilter>('all');
+  const [visaSponsorshipOnly, setVisaSponsorshipOnly] = useState(false);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -130,9 +133,14 @@ export default function Jobs() {
     return Array.from(uniqueSuggestions).slice(0, 8);
   }, [matches, searchQuery]);
 
-  // Filter matches based on search query and score filter
+  // Filter matches based on search query, score filter, and visa sponsorship
   const filteredMatches = useMemo(() => {
     let result = getScoreFilteredMatches(matches || [], matchFilter);
+
+    // Filter by visa sponsorship
+    if (visaSponsorshipOnly) {
+      result = result.filter((match: any) => match.jobs?.visa_sponsorship === true);
+    }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -151,7 +159,7 @@ export default function Jobs() {
     }
 
     return result;
-  }, [matches, searchQuery, matchFilter]);
+  }, [matches, searchQuery, matchFilter, visaSponsorshipOnly]);
 
   // Get counts for each filter
   const filterCounts = useMemo(() => {
@@ -290,6 +298,24 @@ export default function Jobs() {
           </Tabs>
         </div>
 
+        {/* Visa Sponsorship Filter */}
+        <div className="mb-6 flex items-center gap-3 p-3 bg-accent/50 rounded-lg border">
+          <Plane className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-2">
+            <Switch
+              id="visa-filter"
+              checked={visaSponsorshipOnly}
+              onCheckedChange={setVisaSponsorshipOnly}
+            />
+            <Label htmlFor="visa-filter" className="text-sm font-medium cursor-pointer">
+              Visa Sponsorship Available
+            </Label>
+          </div>
+          <span className="text-xs text-muted-foreground ml-auto">
+            Show jobs offering visa sponsorship for overseas applicants
+          </span>
+        </div>
+
         {/* Search Bar */}
         <div className="mb-6 relative">
           <div className="relative">
@@ -349,9 +375,10 @@ export default function Jobs() {
             Showing {filteredMatches?.length || 0} {filteredMatches?.length === 1 ? 'job' : 'jobs'}
             {searchQuery && ` matching "${searchQuery}"`}
             {matchFilter !== 'all' && ` • ${matchFilter} matches only`}
+            {visaSponsorshipOnly && ` • Visa sponsorship`}
           </p>
-          {(searchQuery || matchFilter !== 'all') && (
-            <Button variant="ghost" size="sm" onClick={() => { clearSearch(); setMatchFilter('all'); }}>
+          {(searchQuery || matchFilter !== 'all' || visaSponsorshipOnly) && (
+            <Button variant="ghost" size="sm" onClick={() => { clearSearch(); setMatchFilter('all'); setVisaSponsorshipOnly(false); }}>
               Clear filters
             </Button>
           )}
@@ -377,6 +404,16 @@ export default function Jobs() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Visa Sponsorship Badge */}
+                  {match.jobs.visa_sponsorship && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                        <Plane className="h-3 w-3 mr-1" />
+                        Visa Sponsorship
+                      </Badge>
+                    </div>
+                  )}
+                  
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center text-muted-foreground">
                       <MapPin className="h-4 w-4 mr-2" />

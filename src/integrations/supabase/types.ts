@@ -265,6 +265,7 @@ export type Database = {
           source_platform: string | null
           source_url: string | null
           title: string
+          visa_sponsorship: boolean | null
         }
         Insert: {
           company: string
@@ -282,6 +283,7 @@ export type Database = {
           source_platform?: string | null
           source_url?: string | null
           title: string
+          visa_sponsorship?: boolean | null
         }
         Update: {
           company?: string
@@ -299,6 +301,7 @@ export type Database = {
           source_platform?: string | null
           source_url?: string | null
           title?: string
+          visa_sponsorship?: boolean | null
         }
         Relationships: []
       }
