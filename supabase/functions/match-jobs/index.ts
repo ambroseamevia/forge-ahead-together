@@ -6,6 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// African countries for visa sponsorship bonus
+const africanCountries = [
+  'ghana', 'nigeria', 'kenya', 'south africa', 'egypt', 'morocco', 
+  'tanzania', 'uganda', 'ethiopia', 'rwanda', 'senegal', 'cameroon',
+  'ivory coast', 'côte d\'ivoire', 'zimbabwe', 'zambia', 'botswana',
+  'malawi', 'mozambique', 'namibia', 'africa', 'accra', 'lagos', 
+  'nairobi', 'johannesburg', 'cairo', 'addis ababa', 'kampala', 'dar es salaam'
+];
+
+function isAfricanLocation(location: string | null): boolean {
+  if (!location) return false;
+  const normalized = location.toLowerCase();
+  return africanCountries.some(country => normalized.includes(country));
+}
+
 // Skill synonyms for fuzzy matching
 const skillSynonyms: Record<string, string[]> = {
   'monitoring and evaluation': ['m&e', 'monitoring & evaluation', 'me', 'monitoring evaluation'],
@@ -131,8 +146,10 @@ serve(async (req) => {
     let matchesUpdated = 0;
     const userSkillNames = skills?.map(s => s.skill_name) || [];
     const yearsOfExperience = calculateYearsOfExperience(experience || []);
+    const userIsInAfrica = isAfricanLocation(profile.location);
     
     console.log(`User has ${userSkillNames.length} skills and ${yearsOfExperience} years of experience`);
+    console.log(`User location: ${profile.location}, Is African: ${userIsInAfrica}`);
 
     for (const job of jobs || []) {
       // Calculate match scores
@@ -215,13 +232,19 @@ serve(async (req) => {
         jobTypeScore = hasMatch ? 5 : 2;
       }
 
-      // Calculate total match score
-      const totalScore = Math.round(
-        skillsScore + experienceScore + industryScore + 
-        locationScore + salaryScore + jobTypeScore
-      );
+      // Visa Sponsorship Bonus (up to 10 bonus points for African users)
+      let visaSponsorshipBonus = 0;
+      if (userIsInAfrica && job.visa_sponsorship === true) {
+        visaSponsorshipBonus = 10;
+      }
 
-      console.log(`Job: ${job.title} - Score: ${totalScore}% (Skills: ${Math.round(skillsScore)}, Exp: ${experienceScore}, Ind: ${industryScore}, Loc: ${locationScore})`);
+      // Calculate total match score (capped at 100%)
+      const totalScore = Math.min(100, Math.round(
+        skillsScore + experienceScore + industryScore + 
+        locationScore + salaryScore + jobTypeScore + visaSponsorshipBonus
+      ));
+
+      console.log(`Job: ${job.title} - Score: ${totalScore}% (Skills: ${Math.round(skillsScore)}, Exp: ${experienceScore}, Visa Bonus: ${visaSponsorshipBonus})`);
 
       // LOWERED THRESHOLD: Store ALL matches with score >= 30% (was 50%)
       // This allows users to see more options and filter themselves
